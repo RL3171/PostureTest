@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Posture Tracker Pro — Challenge 5 Edition</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-body: #121212;
+            --bg-panel: #1e1e1e;
+            --bg-sub: #2a2a2a;
+            --text-main: #ffffff;
+            --text-muted: #b3b3b3;
+            --color-good: #4caf50;
+            --color-fair: #ffeb3b;
+            --color-poor: #f44336;
+            --color-accent: #00bcd4;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.5;
+            padding: 15px;
+        }
+
+        header {
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        header h1 {
+            font-size: 1.3rem;
+            color: var(--color-accent);
+        }
+
+        .mode-badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.78rem;
+            font-weight: bold;
+            background: #2a2a2a;
+            border: 1px solid var(--color-accent);
+            color: var(--color-accent);
+        }
+
+        .mode-badge.inspect {
+            border-color: var(--color-fair);
+            color: var(--color-fair);
+        }
+
+        /* Action Bars */
+        .action-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+
+        @media (min-width: 1024px) {
+            .action-grid {
+                grid-template-columns: 1.2fr 1fr;
+            }
+        }
+
+        .action-bar {
+            background: var(--bg-sub);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #3a3a3a;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .action-bar.primary {
+            border-color: var(--color-accent);
+        }
+
+        .action-bar.inspect-bar {
+            border-color: var(--color-fair);
+        }
+
+        .bar-title {
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--text-muted);
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .rec-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+
+        .rec-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #666;
+        }
+
+        .rec-dot.active {
+            background: var(--color-poor);
+            box-shadow: 0 0 8px var(--color-poor);
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.25; }
+        }
+
+        .inline-controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        select, input[type="file"] {
+            background: #1a1a1a;
+            color: var(--text-main);
+            border: 1px solid #444;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: 0.85rem;
+            flex: 1;
+            min-width: 120px;
+        }
+
+        /* Inspection Verdict Banner */
+        #inspection-banner {
+            display: none;
+            background: #1b2428;
+            border: 1px solid var(--color-fair);
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 15px;
+        }
+
+        .verdict-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .verdict-title {
+            font-size: 1.05rem;
+            font-weight: bold;
+        }
+
+        .verdict-stats {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+        }
+
+        .verdict-stats strong {
+            color: var(--text-main);
+        }
+
+        .scrubber-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.85rem;
+        }
+
+        /* Grid Layout */
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+
+        @media (min-width: 1024px) {
+            .dashboard-container {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .panel {
+            background-color: var(--bg-panel);
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel h2 {
+            font-size: 1.05rem;
+            margin-bottom: 12px;
+            color: var(--text-muted);
+            border-bottom: 1px solid #333;
+            padding-bottom: 8px;
+        }
+
+        /* Spatial Views */
+        .spatial-views {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .view-box {
+            background: var(--bg-sub);
+            border-radius: 8px;
+            height: 220px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .view-title {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            z-index: 10;
+        }
+
+        #threejs-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        #target-canvas {
+            background: radial-gradient(circle, #333 0%, #1a1a1a 100%);
+            border-radius: 50%;
+            border: 2px solid #555;
+        }
+
+        /* Controls */
+        .controls {
+            background: var(--bg-sub);
+            padding: 12px;
+            border-radius: 8px;
+        }
+
+        .control-group {
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .control-group label {
+            width: 50px;
+            font-size: 0.85rem;
+        }
+
+        input[type=range] {
+            flex-grow: 1;
+            margin: 0 10px;
+            accent-color: var(--color-accent);
+        }
+
+        .value-display {
+            width: 48px;
+            text-align: right;
+            font-family: monospace;
+            color: var(--color-accent);
+            font-size: 0.85rem;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        button, .download-link {
+            flex: 1;
+            min-width: 110px;
+            padding: 10px 12px;
+            background-color: var(--color-accent);
+            color: #000;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.85rem;
+            text-align: center;
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+
+        button.secondary, .download-link {
+            background-color: #333;
+            color: var(--color-accent);
+            border: 1px solid var(--color-accent);
+        }
+
+        button.danger {
+            background-color: var(--color-poor);
+            color: #fff;
+        }
+
+        button.good {
+            background-color: var(--color-good);
+            color: #000;
+        }
+
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        button:hover:not(:disabled), .download-link:hover {
+            opacity: 0.85;
+        }
+
+        /* Charts */
+        .chart-container {
+            position: relative;
+            height: 205px;
+            width: 100%;
+            margin-bottom: 12px;
+        }
+
+        .heatmap-container {
+            height: 30px;
+            width: 100%;
+            background: var(--bg-sub);
+            border-radius: 4px;
+            display: flex;
+            align-items: stretch;
+            overflow: hidden;
+        }
+
+        .heatmap-bar {
+            flex-grow: 1;
+            background-color: transparent;
+        }
+
+        /* Summary & Analytics */
+        .summary-panel {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+
+        @media (min-width: 768px) {
+            .summary-panel {
+                grid-template-columns: 1fr 2fr;
+            }
+        }
+
+        .doughnut-container {
+            height: 180px;
+            position: relative;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .metric-card {
+            background: var(--bg-sub);
+            padding: 12px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .metric-title {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 5px;
+        }
+
+        .metric-value {
+            font-size: 1.45rem;
+            font-weight: bold;
+            color: var(--text-main);
+        }
+
+        .metric-unit {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Posture Tracker Pro</h1>
+        <div style="display:flex; align-items:center; gap:12px;">
+            <span id="mode-badge" class="mode-badge">LIVE SENSOR MODE</span>
+            <span style="font-size: 0.85rem; color: var(--text-muted);">
+                Status: <span id="status-indicator" style="color: var(--color-good); font-weight: bold;">Good</span>
+            </span>
+        </div>
+    </header>
+
+    <!-- Top Action Bars: Recording & CSV Inspection -->
+    <div class="action-grid">
+        <!-- 1. Sensor & Trial Recording Bar -->
+        <div class="action-bar primary">
+            <div class="bar-title">
+                <span>1. Live Sensor & Trial Recorder</span>
+                <span class="rec-indicator">
+                    <span id="rec-dot" class="rec-dot"></span>
+                    <span id="rec-status-text">Idle (0 samples)</span>
+                </span>
+            </div>
+            <div class="inline-controls">
+                <button id="btn-start-sensors">Start Device IMU Sensors</button>
+                <button id="btn-calibrate" class="secondary">Calibrate Upright Zero</button>
+            </div>
+            <div class="inline-controls">
+                <select id="select-split" title="Dataset Split">
+                    <option value="Design">Split: Design Set</option>
+                    <option value="Test">Split: Held-Out Test</option>
+                </select>
+                <select id="select-condition" title="Condition Label">
+                    <option value="Upright">Condition: Upright (≤10°)</option>
+                    <option value="Moderate_Slouch">Condition: Moderate Slouch (11–20°)</option>
+                    <option value="Heavy_Slouch">Condition: Heavy Slouch (>20°)</option>
+                    <option value="Unlabeled">Condition: Unlabeled (Blind Test)</option>
+                </select>
+            </div>
+            <div class="inline-controls">
+                <button id="btn-rec-start" class="good">Start Recording</button>
+                <button id="btn-rec-stop" class="danger" disabled>Stop Recording</button>
+                <button id="btn-rec-reset" class="secondary">Reset Trial</button>
+                <a href="#" id="link-download-csv" class="download-link">Download CSV</a>
+            </div>
+            <p style="font-size: 0.72rem; color: var(--text-muted);">
+                Secure phone flat against upper chest/sternum. Calibrate while seated upright, then start recording a clean trial.
+            </p>
+        </div>
+
+        <!-- 2. CSV Inspection & Condition Identification Bar -->
+        <div class="action-bar inspect-bar">
+            <div class="bar-title">
+                <span>2. Inspect / Identify Saved Recording (CSV)</span>
+            </div>
+            <p style="font-size: 0.78rem; color: var(--text-muted);">
+                Upload any recorded CSV (such as a held-out test trial) to visualize its posture profile and automatically identify the physical condition.
+            </p>
+            <div class="inline-controls">
+                <input type="file" id="input-csv-file" accept=".csv">
+            </div>
+            <div class="inline-controls">
+                <button id="btn-return-live" class="secondary" disabled>Return to Live Sensor Mode</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inspection Verdict Banner (Visible only in CSV Inspection Mode) -->
+    <div id="inspection-banner">
+        <div class="verdict-header">
+            <div class="verdict-title">
+                Identified Condition: <span id="verdict-label" style="color: var(--color-good);">—</span>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <span id="csv-ground-truth" style="font-size:0.82rem; color: var(--text-muted); display:none;"></span>
+                <button id="btn-reveal-label" class="secondary" style="flex:none; padding:6px 10px; font-size:0.78rem;">
+                    Reveal CSV Label
+                </button>
+            </div>
+        </div>
+        <div class="verdict-stats">
+            <span>File: <strong id="inspect-filename">—</strong></span>
+            <span>Mean Tilt: <strong id="inspect-mean">0°</strong></span>
+            <span>Peak Tilt: <strong id="inspect-peak">0°</strong></span>
+            <span>Good / Fair / Poor: <strong id="inspect-dist">0% / 0% / 0%</strong></span>
+        </div>
+        <div class="scrubber-row">
+            <label for="inspect-scrubber" style="white-space:nowrap;">Replay Frame:</label>
+            <input type="range" id="inspect-scrubber" min="0" max="0" value="0">
+            <span id="inspect-time-label" style="font-family:monospace; color:var(--color-accent); min-width:55px;">0s / 0s</span>
+        </div>
+    </div>
+
+    <div class="dashboard-container">
+        <!-- Left Column: Spatial & Manual Sliders -->
+        <div class="panel">
+            <h2>Real-Time / Replay Spatial Views</h2>
+            <div class="spatial-views">
+                <div class="view-box">
+                    <div class="view-title">3D Digital Twin</div>
+                    <div id="threejs-container"></div>
+                </div>
+                <div class="view-box">
+                    <div class="view-title">2D Target Bubble</div>
+                    <canvas id="target-canvas" width="180" height="180"></canvas>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <label>Pitch</label>
+                    <input type="range" id="slider-pitch" min="-45" max="45" value="0">
+                    <span class="value-display" id="val-pitch">0°</span>
+                </div>
+                <div class="control-group">
+                    <label>Roll</label>
+                    <input type="range" id="slider-roll" min="-45" max="45" value="0">
+                    <span class="value-display" id="val-roll">0°</span>
+                </div>
+                <div class="control-group">
+                    <label>Yaw</label>
+                    <input type="range" id="slider-yaw" min="-45" max="45" value="0">
+                    <span class="value-display" id="val-yaw">0°</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Time Series -->
+        <div class="panel">
+            <h2>Time-Series Tracking</h2>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px;">
+                Absolute Spine Tilt Angle (°) vs. Fair (10°) &amp; Poor (20°) Thresholds
+            </div>
+            <div class="chart-container">
+                <canvas id="line-chart"></canvas>
+            </div>
+
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin: 8px 0 5px 0;">
+                Posture Timeline Heatmap (Green ≤10° | Yellow 11–20° | Red &gt;20° for &gt;2s)
+            </div>
+            <div class="heatmap-container" id="heatmap-container"></div>
+        </div>
+
+        <!-- Bottom: Summary & Analytics -->
+        <div class="panel summary-panel">
+            <div>
+                <h2>Posture Distribution</h2>
+                <div class="doughnut-container">
+                    <canvas id="doughnut-chart"></canvas>
+                </div>
+            </div>
+
+            <div>
+                <h2>Analytics & Metrics</h2>
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-title">Trial Time</div>
+                        <div class="metric-value" id="metric-time">00:00</div>
+                        <div class="metric-unit">MM:SS</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-title">Slouch Secs</div>
+                        <div class="metric-value" id="metric-slouch">0</div>
+                        <div class="metric-unit">Continuous (&gt;20°)</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-title">Fatigue Index</div>
+                        <div class="metric-value" id="metric-fatigue">0</div>
+                        <div class="metric-unit">Score (0–100)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * GLOBAL STATE & CONSTANTS
+         */
+        const ALPHA = 0.08; // Low-pass smoothing factor
+        let mode = 'live'; // 'live' or 'inspect'
+        let isRecording = false;
+
+        let rawData = { pitch: 0, roll: 0, yaw: 0 };
+        let baseline = { pitch: 0, roll: 0, yaw: 0 };
+        let filteredData = { pitch: 0, roll: 0, yaw: 0 };
+
+        let postureState = 'Good';
+        let visualColor = '#4caf50';
+
+        let continuousSlouchTimeMs = 0;
+        let lastFrameTime = performance.now();
+
+        let sessionStats = {
+            totalSeconds: 0,
+            goodSeconds: 0,
+            fairSeconds: 0,
+            poorSeconds: 0
+        };
+
+        let recordedData = [];
+        let inspectedRows = [];
+        let inspectedGroundTruth = 'None';
+
+        /**
+         * DOM ELEMENTS
+         */
+        const sliderPitch = document.getElementById('slider-pitch');
+        const sliderRoll = document.getElementById('slider-roll');
+        const sliderYaw = document.getElementById('slider-yaw');
+        const valPitch = document.getElementById('val-pitch');
+        const valRoll = document.getElementById('val-roll');
+        const valYaw = document.getElementById('val-yaw');
+
+        const btnStartSensors = document.getElementById('btn-start-sensors');
+        const btnCalibrate = document.getElementById('btn-calibrate');
+        const btnRecStart = document.getElementById('btn-rec-start');
+        const btnRecStop = document.getElementById('btn-rec-stop');
+        const btnRecReset = document.getElementById('btn-rec-reset');
+        const linkDownloadCsv = document.getElementById('link-download-csv');
+
+        const selectSplit = document.getElementById('select-split');
+        const selectCondition = document.getElementById('select-condition');
+        const recDot = document.getElementById('rec-dot');
+        const recStatusText = document.getElementById('rec-status-text');
+
+        const inputCsvFile = document.getElementById('input-csv-file');
+        const btnReturnLive = document.getElementById('btn-return-live');
+        const modeBadge = document.getElementById('mode-badge');
+        const inspectionBanner = document.getElementById('inspection-banner');
+        const inspectScrubber = document.getElementById('inspect-scrubber');
+        const btnRevealLabel = document.getElementById('btn-reveal-label');
+        const csvGroundTruthEl = document.getElementById('csv-ground-truth');
+
+        const statusIndicator = document.getElementById('status-indicator');
+        const heatmapContainer = document.getElementById('heatmap-container');
+
+        sliderPitch.addEventListener('input', (e) => { if (mode === 'live') rawData.pitch = parseFloat(e.target.value); });
+        sliderRoll.addEventListener('input', (e) => { if (mode === 'live') rawData.roll = parseFloat(e.target.value); });
+        sliderYaw.addEventListener('input', (e) => { if (mode === 'live') rawData.yaw = parseFloat(e.target.value); });
+
+        /**
+         * HARDWARE SENSOR HANDLING
+         */
+        function handleOrientation(event) {
+            if (mode !== 'live') return;
+            if (event.beta !== null && event.gamma !== null) {
+                rawData.pitch = event.beta;
+                rawData.roll = event.gamma;
+                rawData.yaw = event.alpha || 0;
+
+                sliderPitch.value = Math.max(-45, Math.min(45, rawData.pitch - baseline.pitch)).toFixed(1);
+                sliderRoll.value = Math.max(-45, Math.min(45, rawData.roll - baseline.roll)).toFixed(1);
+                sliderYaw.value = Math.max(-45, Math.min(45, rawData.yaw - baseline.yaw)).toFixed(1);
+            }
+        }
+
+        btnStartSensors.addEventListener('click', () => {
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            window.addEventListener('deviceorientation', handleOrientation, true);
+                            btnStartSensors.innerText = "IMU Sensors Live";
+                            btnStartSensors.style.backgroundColor = "var(--color-good)";
+                        } else {
+                            alert('Device orientation permission denied.');
+                        }
+                    })
+                    .catch(console.error);
+            } else if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', handleOrientation, true);
+                btnStartSensors.innerText = "IMU Sensors Live";
+                btnStartSensors.style.backgroundColor = "var(--color-good)";
+            } else {
+                alert('DeviceOrientation is not supported by this browser.');
+            }
+        });
+
+        btnCalibrate.addEventListener('click', () => {
+            baseline.pitch = rawData.pitch;
+            baseline.roll = rawData.roll;
+            baseline.yaw = rawData.yaw;
+            filteredData.pitch = 0;
+            filteredData.roll = 0;
+            filteredData.yaw = 0;
+            continuousSlouchTimeMs = 0;
+        });
+
+        /**
+         * TRIAL RECORDING CONTROLS
+         */
+        function resetTrialStats() {
+            sessionStats = { totalSeconds: 0, goodSeconds: 0, fairSeconds: 0, poorSeconds: 0 };
+            recordedData = [];
+            continuousSlouchTimeMs = 0;
+            heatmapContainer.innerHTML = '';
+            document.getElementById('metric-time').innerText = '00:00';
+            document.getElementById('metric-slouch').innerText = '0';
+            document.getElementById('metric-fatigue').innerText = '0';
+            document.getElementById('metric-fatigue').style.color = 'var(--color-good)';
+            recStatusText.innerText = isRecording ? 'Recording (0 samples)' : 'Idle (0 samples)';
+
+            // Reset charts to clean live window
+            lineChart.data.labels = Array(30).fill('');
+            lineChart.data.datasets[0].data = Array(30).fill(0);
+            lineChart.data.datasets[1].data = Array(30).fill(10);
+            lineChart.data.datasets[2].data = Array(30).fill(20);
+            lineChart.update();
+
+            doughnutChart.data.datasets[0].data = [1, 0, 0];
+            doughnutChart.update();
+        }
+
+        btnRecStart.addEventListener('click', () => {
+            if (mode === 'inspect') switchToLiveMode();
+            isRecording = true;
+            resetTrialStats();
+            recDot.classList.add('active');
+            recStatusText.innerText = 'Recording (0 samples)';
+            btnRecStart.disabled = true;
+            btnRecStop.disabled = false;
+        });
+
+        btnRecStop.addEventListener('click', () => {
+            isRecording = false;
+            recDot.classList.remove('active');
+            recStatusText.innerText = `Stopped (${recordedData.length} samples ready)`;
+            btnRecStart.disabled = false;
+            btnRecStop.disabled = true;
+        });
+
+        btnRecReset.addEventListener('click', () => {
+            isRecording = false;
+            recDot.classList.remove('active');
+            btnRecStart.disabled = false;
+            btnRecStop.disabled = true;
+            resetTrialStats();
+        });
+
+        linkDownloadCsv.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (recordedData.length === 0) {
+                alert('No trial data recorded yet. Press "Start Recording" first.');
+                return;
+            }
+
+            const headers = [
+                'Timestamp',
+                'Elapsed_Seconds',
+                'Dataset_Split',
+                'Condition_Label',
+                'Raw_Pitch_Deg',
+                'Raw_Roll_Deg',
+                'Raw_Yaw_Deg',
+                'Filtered_Pitch_Deg',
+                'Filtered_Roll_Deg',
+                'Filtered_Yaw_Deg',
+                'Posture_State',
+                'Fatigue_Score'
+            ];
+
+            const csvRows = [headers.join(',')];
+            recordedData.forEach(row => {
+                csvRows.push([
+                    row.timestamp,
+                    row.elapsedSeconds,
+                    row.datasetSplit,
+                    row.conditionLabel,
+                    row.rawPitch,
+                    row.rawRoll,
+                    row.rawYaw,
+                    row.filteredPitch,
+                    row.filteredRoll,
+                    row.filteredYaw,
+                    row.postureState,
+                    row.fatigueScore
+                ].join(','));
+            });
+
+            const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const tempLink = document.createElement('a');
+            const split = selectSplit.value;
+            const cond = selectCondition.value;
+            const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            tempLink.href = url;
+            tempLink.setAttribute('download', `posture_${split}_${cond}_${ts}.csv`);
+            document.body.appendChild(tempLink);
+            tempLink.click();
+            document.body.removeChild(tempLink);
+            URL.revokeObjectURL(url);
+        });
+
+        /**
+         * CSV INSPECTION & CONDITION IDENTIFICATION MODE
+         */
+        function getColorForState(state) {
+            if (state === 'Poor') return '#f44336';
+            if (state === 'Fair') return '#ffeb3b';
+            return '#4caf50';
+        }
+
+        function applyInspectionFrame(index) {
+            const row = inspectedRows[index];
+            if (!row) return;
+
+            filteredData.pitch = row.filteredPitch;
+            filteredData.roll = row.filteredRoll;
+            filteredData.yaw = row.filteredYaw;
+            postureState = row.postureState;
+            visualColor = getColorForState(postureState);
+
+            valPitch.innerText = Math.round(filteredData.pitch) + '°';
+            valRoll.innerText = Math.round(filteredData.roll) + '°';
+            valYaw.innerText = Math.round(filteredData.yaw) + '°';
+
+            sliderPitch.value = Math.max(-45, Math.min(45, filteredData.pitch));
+            sliderRoll.value = Math.max(-45, Math.min(45, filteredData.roll));
+            sliderYaw.value = Math.max(-45, Math.min(45, filteredData.yaw));
+
+            statusIndicator.innerText = postureState;
+            statusIndicator.style.color = visualColor;
+
+            document.getElementById('inspect-time-label').innerText =
+                `${row.elapsedSeconds}s / ${inspectedRows[inspectedRows.length - 1].elapsedSeconds}s`;
+        }
+
+        inspectScrubber.addEventListener('input', (e) => {
+            if (mode === 'inspect') {
+                applyInspectionFrame(parseInt(e.target.value, 10));
+            }
+        });
+
+        btnRevealLabel.addEventListener('click', () => {
+            csvGroundTruthEl.style.display = 'inline';
+            csvGroundTruthEl.innerText = `CSV Label: ${inspectedGroundTruth}`;
+        });
+
+        function switchToLiveMode() {
+            mode = 'live';
+            modeBadge.innerText = 'LIVE SENSOR MODE';
+            modeBadge.classList.remove('inspect');
+            inspectionBanner.style.display = 'none';
+            btnReturnLive.disabled = true;
+            inputCsvFile.value = '';
+            resetTrialStats();
+        }
+
+        btnReturnLive.addEventListener('click', switchToLiveMode);
+
+        inputCsvFile.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                const lines = evt.target.result.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+                if (lines.length < 2) {
+                    alert('CSV file does not contain enough data rows.');
+                    return;
+                }
+
+                const headers = lines[0].split(',').map(h => h.trim());
+                const idxElapsed = headers.indexOf('Elapsed_Seconds');
+                const idxCond = headers.indexOf('Condition_Label');
+                const idxFPitch = headers.indexOf('Filtered_Pitch_Deg');
+                const idxFRoll = headers.indexOf('Filtered_Roll_Deg');
+                const idxFYaw = headers.indexOf('Filtered_Yaw_Deg');
+                const idxState = headers.indexOf('Posture_State');
+                const idxFatigue = headers.indexOf('Fatigue_Score');
+
+                if (idxFPitch === -1) {
+                    alert('Unrecognized CSV format: missing Filtered_Pitch_Deg column.');
+                    return;
+                }
+
+                inspectedRows = [];
+                let good = 0, fair = 0, poor = 0;
+                let sumAbsPitch = 0, peakAbsPitch = 0;
+                let maxContinuousSlouch = 0, curSlouch = 0;
+                let finalFatigue = 0;
+
+                for (let i = 1; i < lines.length; i++) {
+                    const cols = lines[i].split(',');
+                    const fPitch = parseFloat(cols[idxFPitch]) || 0;
+                    const fRoll = idxFRoll !== -1 ? (parseFloat(cols[idxFRoll]) || 0) : 0;
+                    const fYaw = idxFYaw !== -1 ? (parseFloat(cols[idxFYaw]) || 0) : 0;
+                    const elapsed = idxElapsed !== -1 ? parseInt(cols[idxElapsed], 10) : i;
+                    const state = idxState !== -1 ? cols[idxState].trim() : (Math.abs(fPitch) <= 10 ? 'Good' : Math.abs(fPitch) <= 20 ? 'Fair' : 'Poor');
+                    const fatigue = idxFatigue !== -1 ? (parseFloat(cols[idxFatigue]) || 0) : 0;
+
+                    if (i === 1 && idxCond !== -1) {
+                        inspectedGroundTruth = cols[idxCond].trim() || 'Unlabeled';
+                    } else if (i === 1) {
+                        inspectedGroundTruth = 'Not included in CSV';
+                    }
+
+                    const absP = Math.abs(fPitch);
+                    sumAbsPitch += absP;
+                    if (absP > peakAbsPitch) peakAbsPitch = absP;
+
+                    if (state === 'Good') { good++; curSlouch = 0; }
+                    else if (state === 'Fair') { fair++; curSlouch = 0; }
+                    else { poor++; curSlouch++; if (curSlouch > maxContinuousSlouch) maxContinuousSlouch = curSlouch; }
+
+                    finalFatigue = fatigue;
+                    inspectedRows.push({
+                        elapsedSeconds: elapsed,
+                        filteredPitch: fPitch,
+                        filteredRoll: fRoll,
+                        filteredYaw: fYaw,
+                        postureState: state,
+                        fatigueScore: fatigue
+                    });
+                }
+
+                // Enter Inspection Mode
+                isRecording = false;
+                recDot.classList.remove('active');
+                btnRecStart.disabled = false;
+                btnRecStop.disabled = true;
+
+                mode = 'inspect';
+                modeBadge.innerText = 'CSV INSPECTION MODE';
+                modeBadge.classList.add('inspect');
+                btnReturnLive.disabled = false;
+                inspectionBanner.style.display = 'block';
+                csvGroundTruthEl.style.display = 'none';
+
+                const n = inspectedRows.length;
+                const meanTilt = sumAbsPitch / n;
+                const goodPct = Math.round((good / n) * 100);
+                const fairPct = Math.round((fair / n) * 100);
+                const poorPct = Math.round((poor / n) * 100);
+
+                // Automated Condition Identification Rule
+                let verdictText = 'Upright Seated (Good Posture)';
+                let verdictColor = 'var(--color-good)';
+                if (poorPct >= 30 || meanTilt > 20) {
+                    verdictText = 'Heavy Slouch (Poor Posture)';
+                    verdictColor = 'var(--color-poor)';
+                } else if ((fairPct + poorPct) >= 35 || meanTilt > 10) {
+                    verdictText = 'Moderate Slouch (Fair Posture)';
+                    verdictColor = 'var(--color-fair)';
+                }
+
+                const verdictEl = document.getElementById('verdict-label');
+                verdictEl.innerText = verdictText;
+                verdictEl.style.color = verdictColor;
+
+                document.getElementById('inspect-filename').innerText = file.name;
+                document.getElementById('inspect-mean').innerText = `${meanTilt.toFixed(1)}°`;
+                document.getElementById('inspect-peak').innerText = `${peakAbsPitch.toFixed(1)}°`;
+                document.getElementById('inspect-dist').innerText = `${goodPct}% / ${fairPct}% / ${poorPct}%`;
+
+                // Populate Line Chart with full recording
+                lineChart.data.labels = inspectedRows.map(r => `${r.elapsedSeconds}s`);
+                lineChart.data.datasets[0].data = inspectedRows.map(r => Math.abs(r.filteredPitch));
+                lineChart.data.datasets[1].data = Array(n).fill(10);
+                lineChart.data.datasets[2].data = Array(n).fill(20);
+                lineChart.update();
+
+                // Populate Heatmap with full recording
+                heatmapContainer.innerHTML = '';
+                inspectedRows.forEach(r => {
+                    const bar = document.createElement('div');
+                    bar.className = 'heatmap-bar';
+                    bar.style.backgroundColor = getColorForState(r.postureState);
+                    heatmapContainer.appendChild(bar);
+                });
+
+                // Populate Doughnut & Metrics
+                doughnutChart.data.datasets[0].data = [good, fair, poor];
+                doughnutChart.update();
+
+                const mins = Math.floor(n / 60);
+                const secs = n % 60;
+                document.getElementById('metric-time').innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                document.getElementById('metric-slouch').innerText = maxContinuousSlouch;
+                const fatigueEl = document.getElementById('metric-fatigue');
+                fatigueEl.innerText = Math.round(finalFatigue);
+                fatigueEl.style.color = finalFatigue > 70 ? 'var(--color-poor)' : finalFatigue > 40 ? 'var(--color-fair)' : 'var(--color-good)';
+
+                // Setup Scrubber
+                inspectScrubber.min = 0;
+                inspectScrubber.max = n - 1;
+                inspectScrubber.value = 0;
+                applyInspectionFrame(0);
+            };
+            reader.readAsText(file);
+        });
+
+        /**
+         * THREE.JS 3D AVATAR SETUP
+         */
+        const threeContainer = document.getElementById('threejs-container');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, threeContainer.clientWidth / threeContainer.clientHeight, 0.1, 100);
+        camera.position.set(0, 10, 25);
+        camera.lookAt(0, 5, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
+        threeContainer.appendChild(renderer.domElement);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(10, 20, 10);
+        scene.add(directionalLight);
+
+        const spineMaterial = new THREE.MeshPhongMaterial({ color: 0x4caf50, shininess: 80 });
+        const jointMaterial = new THREE.MeshPhongMaterial({ color: 0xaaaaaa });
+
+        const pelvis = new THREE.Mesh(new THREE.BoxGeometry(4, 2, 3), jointMaterial);
+        scene.add(pelvis);
+
+        const lowerSpinePivot = new THREE.Group();
+        lowerSpinePivot.position.y = 1;
+        pelvis.add(lowerSpinePivot);
+
+        const spine1 = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.2, 5), spineMaterial);
+        spine1.position.y = 2.5;
+        lowerSpinePivot.add(spine1);
+
+        const upperSpinePivot = new THREE.Group();
+        upperSpinePivot.position.y = 2.5;
+        spine1.add(upperSpinePivot);
+
+        const spine2 = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1, 4), spineMaterial);
+        spine2.position.y = 2;
+        upperSpinePivot.add(spine2);
+
+        const headPivot = new THREE.Group();
+        headPivot.position.y = 2;
+        spine2.add(headPivot);
+
+        const head = new THREE.Mesh(new THREE.SphereGeometry(1.5, 32, 32), spineMaterial);
+        head.position.y = 1.5;
+        headPivot.add(head);
+
+        window.addEventListener('resize', () => {
+            camera.aspect = threeContainer.clientWidth / threeContainer.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(threeContainer.clientWidth, threeContainer.clientHeight);
+        });
+
+        /**
+         * 2D TARGET BUBBLE SETUP
+         */
+        const targetCanvas = document.getElementById('target-canvas');
+        const ctx2d = targetCanvas.getContext('2d');
+        const cw = targetCanvas.width;
+        const ch = targetCanvas.height;
+
+        function drawTarget(xOffset, yOffset, color) {
+            ctx2d.clearRect(0, 0, cw, ch);
+            ctx2d.strokeStyle = '#555';
+            ctx2d.lineWidth = 1;
+            for (let i = 1; i <= 3; i++) {
+                ctx2d.beginPath();
+                ctx2d.arc(cw / 2, ch / 2, (cw / 2) * (i / 3) - 2, 0, Math.PI * 2);
+                ctx2d.stroke();
+            }
+            ctx2d.beginPath();
+            ctx2d.moveTo(cw / 2, 0); ctx2d.lineTo(cw / 2, ch);
+            ctx2d.moveTo(0, ch / 2); ctx2d.lineTo(cw, ch / 2);
+            ctx2d.stroke();
+
+            const maxDeg = 45;
+            const clampedX = Math.max(-maxDeg, Math.min(maxDeg, xOffset));
+            const clampedY = Math.max(-maxDeg, Math.min(maxDeg, yOffset));
+            const bx = cw / 2 + (clampedX / maxDeg) * (cw / 2 - 10);
+            const by = ch / 2 + (clampedY / maxDeg) * (ch / 2 - 10);
+
+            ctx2d.fillStyle = color;
+            ctx2d.shadowColor = color;
+            ctx2d.shadowBlur = 10;
+            ctx2d.beginPath();
+            ctx2d.arc(bx, by, 10, 0, Math.PI * 2);
+            ctx2d.fill();
+            ctx2d.shadowBlur = 0;
+        }
+
+        /**
+         * CHART.JS SETUP
+         */
+        Chart.defaults.color = '#b3b3b3';
+        Chart.defaults.font.family = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+
+        const lineCtx = document.getElementById('line-chart').getContext('2d');
+        const lineChart = new Chart(lineCtx, {
+            type: 'line',
+            data: {
+                labels: Array(30).fill(''),
+                datasets: [
+                    {
+                        label: 'Spine Tilt (°)',
+                        data: Array(30).fill(0),
+                        borderColor: '#00bcd4',
+                        backgroundColor: 'rgba(0, 188, 212, 0.12)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Fair Threshold (10°)',
+                        data: Array(30).fill(10),
+                        borderColor: '#ffeb3b',
+                        borderWidth: 1.5,
+                        borderDash: [4, 4],
+                        pointRadius: 0,
+                        fill: false
+                    },
+                    {
+                        label: 'Poor Threshold (20°)',
+                        data: Array(30).fill(20),
+                        borderColor: '#f44336',
+                        borderWidth: 1.5,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                scales: {
+                    y: { min: 0, max: 45, grid: { color: '#333' } },
+                    x: { grid: { display: false }, ticks: { maxTicksLimit: 8 } }
+                },
+                plugins: { legend: { display: true, labels: { boxWidth: 12, font: { size: 10 } } } }
+            }
+        });
+
+        const doughnutCtx = document.getElementById('doughnut-chart').getContext('2d');
+        const doughnutChart = new Chart(doughnutCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Good (≤10°)', 'Fair (11–20°)', 'Poor (>20°)'],
+                datasets: [{
+                    data: [1, 0, 0],
+                    backgroundColor: ['#4caf50', '#ffeb3b', '#f44336'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right', labels: { color: '#fff' } }
+                }
+            }
+        });
+
+        /**
+         * ANIMATION LOOP (60FPS)
+         */
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const now = performance.now();
+            const dt = now - lastFrameTime;
+            lastFrameTime = now;
+
+            if (mode === 'live') {
+                const targetPitch = rawData.pitch - baseline.pitch;
+                const targetRoll = rawData.roll - baseline.roll;
+                const targetYaw = rawData.yaw - baseline.yaw;
+
+                filteredData.pitch += ALPHA * (targetPitch - filteredData.pitch);
+                filteredData.roll += ALPHA * (targetRoll - filteredData.roll);
+                filteredData.yaw += ALPHA * (targetYaw - filteredData.yaw);
+
+                valPitch.innerText = Math.round(filteredData.pitch) + '°';
+                valRoll.innerText = Math.round(filteredData.roll) + '°';
+                valYaw.innerText = Math.round(filteredData.yaw) + '°';
+
+                const absPitch = Math.abs(filteredData.pitch);
+                if (absPitch <= 10) {
+                    postureState = 'Good';
+                    continuousSlouchTimeMs = 0;
+                    visualColor = '#4caf50';
+                } else if (absPitch <= 20) {
+                    postureState = 'Fair';
+                    continuousSlouchTimeMs = 0;
+                    visualColor = '#ffeb3b';
+                } else {
+                    continuousSlouchTimeMs += dt;
+                    if (continuousSlouchTimeMs > 2000) {
+                        postureState = 'Poor';
+                        visualColor = '#f44336';
+                    } else {
+                        postureState = 'Fair';
+                        visualColor = '#ffeb3b';
+                    }
+                }
+            }
+
+            // Update 3D Avatar & 2D Target in both Live and Inspect modes
+            const radPitch = THREE.MathUtils.degToRad(filteredData.pitch);
+            const radRoll = THREE.MathUtils.degToRad(filteredData.roll);
+            const radYaw = THREE.MathUtils.degToRad(filteredData.yaw);
+
+            lowerSpinePivot.rotation.x = radPitch * 0.4;
+            lowerSpinePivot.rotation.z = radRoll * 0.4;
+            lowerSpinePivot.rotation.y = radYaw * 0.3;
+
+            upperSpinePivot.rotation.x = radPitch * 0.4;
+            upperSpinePivot.rotation.z = radRoll * 0.4;
+            upperSpinePivot.rotation.y = radYaw * 0.4;
+
+            headPivot.rotation.x = radPitch * 0.2;
+            headPivot.rotation.y = radYaw * 0.3;
+
+            const hexColor = new THREE.Color(visualColor);
+            spine1.material.color.lerp(hexColor, 0.15);
+            spine2.material.color.lerp(hexColor, 0.15);
+            head.material.color.lerp(hexColor, 0.15);
+
+            renderer.render(scene, camera);
+            drawTarget(filteredData.roll, filteredData.pitch, visualColor);
+        }
+
+        animate();
+
+        /**
+         * TIME-SERIES & RECORDING LOOP (1Hz)
+         */
+        setInterval(() => {
+            if (mode !== 'live') return;
+
+            statusIndicator.innerText = postureState;
+            statusIndicator.style.color = visualColor;
+
+            const absTilt = Math.abs(filteredData.pitch);
+            lineChart.data.datasets[0].data.shift();
+            lineChart.data.datasets[0].data.push(absTilt);
+            lineChart.update();
+
+            if (!isRecording) return;
+
+            sessionStats.totalSeconds++;
+            if (postureState === 'Good') sessionStats.goodSeconds++;
+            else if (postureState === 'Fair') sessionStats.fairSeconds++;
+            else if (postureState === 'Poor') sessionStats.poorSeconds++;
+
+            const mins = Math.floor(sessionStats.totalSeconds / 60);
+            const secs = sessionStats.totalSeconds % 60;
+            document.getElementById('metric-time').innerText =
+                `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+            const slouchSecs = Math.floor(continuousSlouchTimeMs / 1000);
+            const slouchElement = document.getElementById('metric-slouch');
+            slouchElement.innerText = slouchSecs;
+            slouchElement.style.color = slouchSecs >= 2 ? 'var(--color-poor)' : 'var(--text-main)';
+
+            let fatigueScore = Math.min(100, Math.round(
+                ((sessionStats.poorSeconds * 2 + sessionStats.fairSeconds * 0.5) / sessionStats.totalSeconds) * 100
+                + (slouchSecs > 10 ? slouchSecs : 0)
+            ));
+            if (isNaN(fatigueScore)) fatigueScore = 0;
+
+            const fatigueElement = document.getElementById('metric-fatigue');
+            fatigueElement.innerText = fatigueScore;
+            fatigueElement.style.color = fatigueScore > 70 ? 'var(--color-poor)' : fatigueScore > 40 ? 'var(--color-fair)' : 'var(--color-good)';
+
+            recordedData.push({
+                timestamp: new Date().toISOString(),
+                elapsedSeconds: sessionStats.totalSeconds,
+                datasetSplit: selectSplit.value,
+                conditionLabel: selectCondition.value,
+                rawPitch: rawData.pitch.toFixed(2),
+                rawRoll: rawData.roll.toFixed(2),
+                rawYaw: rawData.yaw.toFixed(2),
+                filteredPitch: filteredData.pitch.toFixed(2),
+                filteredRoll: filteredData.roll.toFixed(2),
+                filteredYaw: filteredData.yaw.toFixed(2),
+                postureState: postureState,
+                fatigueScore: fatigueScore
+            });
+
+            recStatusText.innerText = `Recording (${recordedData.length} samples)`;
+
+            doughnutChart.data.datasets[0].data = [
+                sessionStats.goodSeconds,
+                sessionStats.fairSeconds,
+                sessionStats.poorSeconds
+            ];
+            doughnutChart.update();
+
+            const bar = document.createElement('div');
+            bar.className = 'heatmap-bar';
+            bar.style.backgroundColor = visualColor;
+            heatmapContainer.appendChild(bar);
+            if (heatmapContainer.children.length > 120) {
+                heatmapContainer.removeChild(heatmapContainer.firstChild);
+            }
+        }, 1000);
+    </script>
+</body>
+</html>
